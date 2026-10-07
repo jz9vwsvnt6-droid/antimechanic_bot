@@ -18,6 +18,69 @@ app.use(express.json());
 // Простой health-check — по нему тоже можно "будить" сервис, если понадобится.
 app.get("/", (_req, res) => res.send("Наблюдатель: бот работает."));
 
+// --- Опросник для Арсена -------------------------------------------------
+// Страница: https://<адрес-бота>.onrender.com/opros
+// Ответы приходят сообщением от бота человеку из OPROS_CHAT_ID
+// (если не задан — первому ID из ADMIN_IDS).
+const path = require("path");
+
+app.get("/opros", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "opros.html"));
+});
+
+const OPROS_CHAT_ID =
+  process.env.OPROS_CHAT_ID || (process.env.ADMIN_IDS || "").split(",")[0].trim();
+
+// Простая защита от спама: не больше 5 отправок за 10 минут с одного адреса
+// и не больше 30 в сутки всего.
+const oprosHits = new Map();
+let oprosDay = { date: new Date().toDateString(), count: 0 };
+
+function splitForTelegram(text, limit = 3800) {
+  const parts = [];
+  let cur = "";
+  for (const line of text.split("\n")) {
+    if ((cur + "\n" + line).length > limit && cur) {
+      parts.push(cur);
+      cur = line;
+    } else {
+      cur = cur ? cur + "\n" + line : line;
+    }
+  }
+  if (cur) parts.push(cur);
+  return parts;
+}
+
+app.post("/opros/answers", async (req, res) => {
+  try {
+    const text = req.body && typeof req.body.text === "string" ? req.body.text.trim() : "";
+    if (!text || text.length > 20000) return res.status(400).json({ ok: false, error: "bad_text" });
+    if (!OPROS_CHAT_ID) return res.status(500).json({ ok: false, error: "no_chat" });
+
+    const today = new Date().toDateString();
+    if (oprosDay.date !== today) oprosDay = { date: today, count: 0 };
+    const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+    const now = Date.now();
+    const recent = (oprosHits.get(ip) || []).filter((t) => now - t < 10 * 60 * 1000);
+    if (recent.length >= 5 || oprosDay.count >= 30) {
+      return res.status(429).json({ ok: false, error: "too_many" });
+    }
+    recent.push(now);
+    oprosHits.set(ip, recent);
+    oprosDay.count++;
+
+    const parts = splitForTelegram(text);
+    for (let i = 0; i < parts.length; i++) {
+      const prefix = parts.length > 1 ? `(${i + 1}/${parts.length})\n` : "";
+      await bot.telegram.sendMessage(OPROS_CHAT_ID, prefix + parts[i]);
+    }
+    res.json({ ok: true, parts: parts.length });
+  } catch (err) {
+    console.error("Ошибка отправки ответов опроса:", err.message);
+    res.status(500).json({ ok: false, error: "send_failed" });
+  }
+});
+
 // Приём обновлений от Telegram. Путь содержит секрет, чтобы никто посторонний
 // не мог слать боту поддельные апдейты, зная только адрес сервиса.
 app.use(bot.webhookCallback(`/telegram-webhook/${WEBHOOK_SECRET}`));
