@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2F5233">
+<title>Несколько вопросов — для Арсена</title>
+<style>
+  :root {
+    color-scheme: light;
+    --cream: #F7F2E7;
+    --paper: #FFFDF8;
+    --green: #2F5233;
+    --green-2: #3E6B43;
+    --green-tint: #E5ECDF;
+    --gold: #B08A3D;
+    --gold-tint: #F3E9D2;
+    --ink: #2A2A26;
+    --muted: #6E6C63;
+    --line: #E4DCCB;
+    --red: #9C3D2E;
+    --red-tint: #F6E3DE;
+    --radius: 16px;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  textarea { font: inherit; }
+
+  /* ---------- Layout ---------- */
+  .shell { max-width: 1180px; margin: 0 auto; padding: 0 20px; display: grid; grid-template-columns: 1fr; gap: 32px; }
+  @media (min-width: 1080px) {
+    .shell.with-rail { grid-template-columns: 260px minmax(0, 1fr); }
+  }
+  main { max-width: 720px; width: 100%; margin: 0 auto; padding-bottom: 140px; }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(247, 242, 231, 0.92);
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-inner { max-width: 1180px; margin: 0 auto; padding: 12px 20px 14px; }
+  .topline { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--muted); }
+  .brand { font-family: var(--serif); color: var(--green); font-size: 17px; font-weight: 600; letter-spacing: .2px; }
+  .meta { display: flex; gap: 14px; align-items: center; white-space: nowrap; }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .map-btn { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+  @media (min-width: 1080px) { .map-btn { display: none; } }
+
+  .track { display: flex; gap: 6px; margin-top: 10px; }
+  .seg { flex: var(--w) 1 0; }
+  .seg-bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .seg-fill { height: 100%; width: 0; background: var(--green); border-radius: 99px; transition: width .45s ease; }
+  .seg.active .seg-fill { background: var(--gold); }
+  .seg.done .seg-fill { background: var(--green); }
+  .seg-label { font-size: 11.5px; color: var(--muted); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .2px; }
+  .seg.active .seg-label { color: var(--gold); font-weight: 600; }
+  @media (max-width: 520px) { .seg-label { display: none; } .seg.active .seg-label { display: block; } }
+
+  /* ---------- Rail (desktop map) ---------- */
+  .rail { display: none; }
+  @media (min-width: 1080px) {
+    .with-rail .rail { display: block; position: sticky; top: 104px; align-self: start; padding-top: 32px; max-height: calc(100vh - 110px); overflow: auto; }
+  }
+  .rail h4 { font-family: var(--serif); font-weight: 600; color: var(--green); margin: 0 0 6px; font-size: 15px; }
+  .rail .block-map { margin-bottom: 22px; }
+  .dots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .dot {
+    width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper);
+    font-size: 11.5px; display: grid; place-items: center; color: var(--muted); padding: 0;
+  }
+  .dot.answered { background: var(--green-tint); border-color: #C9D7C0; color: var(--green); }
+  .dot.refused { background: var(--red-tint); border-color: #E9C6BE; color: var(--red); }
+  .dot.skipped { background: #EFEAE0; color: #9C988C; }
+  .dot.current { outline: 2px solid var(--gold); outline-offset: 1px; color: var(--ink); font-weight: 700; }
+  .dot:disabled { cursor: default; opacity: .55; }
+  .legend { font-size: 12.5px; color: var(--muted); line-height: 1.9; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+  /* Mobile map drawer */
+  .drawer-bg { position: fixed; inset: 0; background: rgba(30, 30, 25, .35); z-index: 40; display: none; }
+  .drawer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: var(--paper); border-radius: 22px 22px 0 0; padding: 20px 20px calc(24px + env(safe-area-inset-bottom)); max-height: 78vh; overflow: auto; transform: translateY(100%); transition: transform .3s ease; box-shadow: 0 -10px 40px rgba(0,0,0,.12); }
+  .drawer.open { transform: translateY(0); }
+  .drawer-bg.open { display: block; }
+  .drawer .grab { width: 44px; height: 5px; background: var(--line); border-radius: 9px; margin: -6px auto 14px; }
+
+  /* ---------- Cards / screens ---------- */
+  .screen { padding-top: 36px; animation: rise .38s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .screen { animation: none; } .seg-fill, .drawer { transition: none; } }
+
+  .eyebrow { font-size: 12.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--gold); }
+  h1, h2 { font-family: var(--serif); color: var(--green); font-weight: 600; letter-spacing: .1px; }
+  h1 { font-size: clamp(34px, 6vw, 48px); line-height: 1.08; margin: 10px 0 18px; }
+  h2.q { font-size: clamp(23px, 3.6vw, 30px); line-height: 1.25; margin: 10px 0 8px; color: var(--ink); }
+  .rule { width: 56px; height: 3px; background: var(--gold); border-radius: 3px; margin: 14px 0 22px; }
+
+  .letter { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px 26px 22px; font-size: 17.5px; line-height: 1.65; }
+  .letter p { margin: 0 0 14px; }
+  .letter .sign { font-family: var(--serif); color: var(--green); font-size: 18px; margin-top: 18px; }
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0 26px; }
+  .fact { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 14px 14px 12px; }
+  .fact b { display: block; font-family: var(--serif); font-size: 26px; color: var(--green); line-height: 1.1; }
+  .fact span { font-size: 13px; color: var(--muted); }
+  @media (max-width: 520px) { .fact b { font-size: 22px; } .fact { padding: 12px 10px 10px; } }
+
+  .blocks-list { display: grid; gap: 10px; margin: 6px 0 4px; }
+  .blocks-list div { display: flex; gap: 14px; align-items: baseline; padding: 12px 0; border-top: 1px solid var(--line); }
+  .blocks-list div:last-child { border-bottom: 1px solid var(--line); }
+  .blocks-list .n { font-family: var(--serif); color: var(--gold); font-size: 20px; min-width: 26px; }
+  .blocks-list .t { font-weight: 600; }
+  .blocks-list .d { color: var(--muted); font-size: 15px; }
+
+  .qmeta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--green); background: var(--green-tint); padding: 5px 11px; border-radius: 99px; letter-spacing: .2px; }
+  .qnum { font-size: 13px; color: var(--muted); }
+  .multi-note { font-size: 13.5px; color: var(--muted); margin: 2px 0 0; }
+
+  .hint { margin: 14px 0 4px; border-left: 3px solid var(--gold); background: var(--gold-tint); border-radius: 0 12px 12px 0; padding: 12px 16px; font-size: 15px; color: #5A4A27; line-height: 1.55; }
+  .hint b { font-weight: 700; color: #7A5E22; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 4px; }
+
+  .options { display: grid; gap: 10px; margin: 22px 0 14px; }
+  .opt {
+    display: flex; align-items: flex-start; gap: 14px; text-align: left;
+    background: var(--paper); border: 1.5px solid var(--line); border-radius: 14px; padding: 15px 16px;
+    transition: border-color .15s, background .15s, transform .08s;
+    font-size: 16.5px; line-height: 1.4; width: 100%;
+  }
+  .opt:hover { border-color: #CBBF9F; }
+  .opt:active { transform: scale(.995); }
+  .opt .mark { flex: 0 0 22px; height: 22px; border-radius: 50%; border: 2px solid #C8BEA6; margin-top: 1px; display: grid; place-items: center; transition: all .15s; }
+  .opt.multi .mark { border-radius: 6px; }
+  .opt .key { margin-left: auto; font-size: 12px; color: #B3AB97; border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; align-self: center; }
+  @media (hover: none) { .opt .key { display: none; } }
+  .opt.sel { border-color: var(--green); background: #F2F6EE; }
+  .opt.sel .mark { border-color: var(--green); background: var(--green); }
+  .opt.sel .mark::after { content: ""; width: 8px; height: 8px; background: #fff; border-radius: 50%; }
+  .opt.multi.sel .mark::after { width: 10px; height: 6px; background: none; border: 2px solid #fff; border-top: 0; border-right: 0; border-radius: 0; transform: rotate(-45deg) translate(1px, -1px); }
+
+  .alt-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 12px; }
+  .alt {
+    border: 1.5px dashed #D4C9AF; background: transparent; border-radius: 12px; padding: 10px 14px; font-size: 15px; color: var(--muted);
+    display: inline-flex; align-items: center; gap: 8px; transition: all .15s;
+  }
+  .alt:hover { border-color: #BDAF8C; color: var(--ink); }
+  .alt.refuse.sel { border-style: solid; border-color: var(--red); background: var(--red-tint); color: var(--red); font-weight: 600; }
+  .alt.comment.sel { border-style: solid; border-color: var(--gold); color: #7A5E22; background: var(--gold-tint); }
+
+  .comment-box { display: none; margin-top: 6px; }
+  .comment-box.open { display: block; animation: rise .25s ease both; }
+  .comment-box label { display: block; font-size: 13.5px; color: var(--muted); margin-bottom: 6px; }
+  .comment-box textarea {
+    width: 100%; min-height: 104px; resize: vertical; border: 1.5px solid var(--line); border-radius: 14px; padding: 14px 16px; background: var(--paper);
+    font-size: 16.5px; line-height: 1.5; color: var(--ink); outline: none; transition: border-color .15s;
+  }
+  .comment-box textarea:focus { border-color: var(--gold); }
+  .open-only textarea { min-height: 180px; }
+
+  /* ---------- Bottom nav ---------- */
+  .navbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    background: rgba(255, 253, 248, .96); border-top: 1px solid var(--line);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  }
+  .navbar-inner { max-width: 720px; margin: 0 auto; display: flex; gap: 10px; align-items: center; }
+  .shell.with-rail ~ .navbar .navbar-inner { max-width: 720px; }
+  @media (min-width: 1080px) {
+    .navbar.railed .navbar-inner { max-width: 1180px; padding-left: 292px; }
+    .navbar.railed .navbar-inner > .nav-wrap { max-width: 720px; width: 100%; margin: 0 auto; display: flex; gap: 10px; align-items: center; }
+  }
+  .nav-wrap { display: flex; gap: 10px; align-items: center; width: 100%; }
+  .btn { border: 0; border-radius: 14px; padding: 15px 22px; font-size: 16.5px; font-weight: 600; transition: background .15s, opacity .15s, transform .08s; }
+  .btn:active { transform: scale(.985); }
+  .btn.primary { background: var(--green); color: #fff; flex: 1; }
+  .btn.primary:hover { background: var(--green-2); }
+  .btn.primary:disabled { opacity: .38; cursor: not-allowed; }
+  .btn.ghost { background: transparent; border: 1.5px solid var(--line); color: var(--ink); }
+  .btn.ghost:hover { border-color: #CBBF9F; }
+  .btn.skip { background: transparent; color: var(--muted); padding: 15px 12px; font-weight: 500; }
+  .btn.gold { background: var(--gold); color: #fff; }
+  .btn.tg { background: #2AABEE; color: #fff; display: inline-flex; gap: 10px; align-items: center; justify-content: center; }
+  .btn.tg:hover { background: #229ED9; }
+  @media (max-width: 420px) { .btn { padding: 14px 16px; } .btn.skip { padding: 14px 6px; } }
+
+  /* ---------- Section interstitial ---------- */
+  .interstitial { text-align: left; padding-top: 10vh; }
+  .interstitial .big { font-family: var(--serif); font-size: 72px; color: var(--gold); line-height: 1; }
+  .interstitial p { font-size: 18px; color: var(--muted); max-width: 560px; }
+
+  /* ---------- Summary ---------- */
+  .sum-block { margin: 26px 0 8px; }
+  .sum-block h3 { font-family: var(--serif); color: var(--green); font-size: 21px; margin: 0 0 8px; font-weight: 600; }
+  .sum-item { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 13px 16px; margin-bottom: 8px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+  .sum-item .q { font-size: 14px; color: var(--muted); }
+  .sum-item .a { font-size: 16px; font-weight: 600; }
+  .sum-item .a.refused { color: var(--red); }
+  .sum-item .a.skipped { color: #9C988C; font-weight: 500; font-style: italic; }
+  .sum-item .c { grid-column: 1 / -1; font-size: 15px; color: #5A4A27; background: var(--gold-tint); border-radius: 10px; padding: 8px 12px; margin-top: 6px; }
+  .sum-item .edit { grid-row: 1 / span 2; grid-column: 2; align-self: start; background: none; border: 0; color: var(--gold); font-size: 14px; font-weight: 600; padding: 2px 0; }
+  .send-card { background: var(--green); color: #fff; border-radius: 20px; padding: 26px; margin: 26px 0 10px; }
+  .send-card h2 { color: #fff; margin: 0 0 8px; font-size: 26px; }
+  .send-card p { color: #DCE6D6; margin: 0 0 18px; font-size: 16px; }
+  .send-actions { display: grid; gap: 10px; }
+  .send-actions .btn { width: 100%; }
+  .small-link { background: none; border: 0; color: #DCE6D6; text-decoration: underline; font-size: 14.5px; padding: 6px 0 0; }
+  .toast { position: fixed; left: 50%; bottom: 110px; transform: translateX(-50%) translateY(20px); background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 12px; font-size: 15px; opacity: 0; pointer-events: none; transition: all .25s; z-index: 60; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .footnote { font-size: 13.5px; color: var(--muted); margin-top: 22px; }
+  .stat-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0 4px; }
+  .stat { font-size: 14px; padding: 6px 12px; border-radius: 99px; background: var(--paper); border: 1px solid var(--line); }
+  .stat b { color: var(--green); }
+  .hidden { display: none !important; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header class="topbar hidden" id="topbar">
+  <div class="topbar-inner">
+    <div class="topline">
+      <span class="brand">Вопросы для Арсена</span>
+      <span class="meta">
+        <span id="metaCount"><b>1</b> из 50</span>
+        <span id="metaTime">≈ 30 мин</span>
+        <button class="map-btn" id="mapBtn" aria-label="Карта вопросов">Карта</button>
+      </span>
+    </div>
+    <div class="track" id="track"></div>
+  </div>
+</header>
+
+<div class="shell" id="shell">
+  <aside class="rail" id="rail" aria-label="Карта вопросов"></aside>
+  <main id="main"></main>
+</div>
+
+<nav class="navbar hidden" id="navbar">
+  <div class="navbar-inner"><div class="nav-wrap" id="navWrap"></div></div>
+</nav>
+
+<div class="drawer-bg" id="drawerBg"></div>
+<div class="drawer" id="drawer" role="dialog" aria-label="Карта вопросов"><div class="grab"></div><div id="drawerBody"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var TG_USERNAME = "Mikekaz0301";
+  // Открыто по ссылке с сервера бота → отправка через бота; открыто как файл → через Telegram
+  var ONLINE = /^https?:$/.test(location.protocol) && location.pathname.indexOf("/opros") === 0;
+  var STORE_KEY = "arsen-opros-v1";
+  var SEC_PER_Q = 36; // средняя оценка на вопрос, уточняется по факту
+
+  var BLOCKS = [
+    { id: "bot", title: "Бот «Наблюдатель»", short: "Бот", desc: "Что уже работает в группе: будильники, дневник, библиотека, тема недели. Что оставить, что поменять, что убрать." },
+    { id: "zapros", title: "Принцип «запроса»", short: "Запрос", desc: "Кто и как приходит к Работе. Нужен ли порог, кто его держит, что считать настоящим запросом — и что нет." },
+    { id: "platform", title: "Будущая платформа", short: "Платформа", desc: "Не о том, чтобы делать её сейчас. О том, какой она могла бы быть, если когда-нибудь — и где её красные линии." }
+  ];
+
+  // type: "single" | "multi" | "open"
+  var QUESTIONS = [
+    // ---------- Бот ----------
+    { b: "bot", s: "Общее ощущение от бота", t: "Как ты сейчас относишься к боту «Наблюдатель» в целом?",
+      o: ["Полезен — оставляем как есть", "Полезен, но нужно доработать", "Есть сомнения — хочу обсудить лично", "Лучше свернуть"] },
+    { b: "bot", s: "Частота будильников", t: "Сколько вопросов-будильников в день разумно предлагать людям?",
+      h: "Гурджиев говорил о «будильниках» — внешних толчках, которые возвращают человека к себе. Но толчок, который повторяется слишком часто, перестаёт будить и становится фоном.",
+      o: ["Реже — 1–2 в день", "Как сейчас — до 6, на выбор человека", "Пусть каждый решает сам, без ограничения", "Будильники лучше убрать"] },
+    { b: "bot", s: "Кто пишет тексты будильников", t: "Кто должен формулировать сами вопросы-напоминания?",
+      o: ["Я сам пишу или утверждаю каждый", "Михаил предлагает — я утверждаю", "Текущие тексты меня устраивают"] },
+    { b: "bot", s: "Будильники и тема недели", t: "Стоит ли связывать вопросы-будильники с темой недели?",
+      o: ["Да — пусть будильники подстраиваются под тему", "Нет — общие вопросы работают лучше", "Попробовать на одной теме и посмотреть"] },
+    { b: "bot", s: "Время напоминаний", t: "Сейчас напоминания приходят с 9:00 до 22:00 по Москве. Как лучше?",
+      o: ["Оставить как есть", "Дать каждому выбрать своё окно времени", "Привязать к часовому поясу человека"] },
+    { b: "bot", s: "Дневник наблюдений", t: "Что делать с дневником наблюдений в боте?",
+      o: ["Оставить полностью личным, как сейчас", "Добавить возможность показать мне запись перед встречей", "Дневник не нужен — убрать"] },
+    { b: "bot", s: "Доступ к дневникам", t: "Должен ли ты когда-нибудь видеть содержание дневников участников?",
+      o: ["Никогда — только общие цифры", "Только если человек сам решил поделиться", "Да, мне это помогает вести группу"] },
+    { b: "bot", s: "Недельное «зеркало»", t: "Нужна ли участнику мягкая недельная сводка по его записям (какие центры чаще появлялись, что повторялось)?",
+      h: "Есть риск, что «анализ» подменит само наблюдение. Есть и польза — человек видит, где он механичен чаще всего.",
+      o: ["Да, это полезное зеркало", "Нет — лишний анализ вместо наблюдения", "Вернуться к этому позже"] },
+    { b: "bot", type: "multi", s: "Что должно быть в библиотеке", t: "Что ты считаешь уместным держать в библиотеке бота?",
+      o: ["Записи наших встреч", "Тексты: «Беседы», Успенский и др.", "Музыка Гурджиева — де Гартмана", "Только то, что я отберу лично"] },
+    { b: "bot", s: "Записи встреч", t: "Записывать ли встречи и выкладывать ли их в библиотеку?",
+      o: ["Да, все встречи", "Только выборочно — по моему решению", "Нет, встречи не записываем"] },
+    { b: "bot", s: "Глоссарий терминов", t: "В боте есть короткий глоссарий: самовспоминание, механичность, три центра, буфер. Что с ним делать?",
+      o: ["Оставить — я проверю формулировки", "Переписать полностью моими словами", "Убрать — понятия передаются только на встречах"] },
+    { b: "bot", s: "Тема недели", t: "Как тебе удобнее задавать тему недели?",
+      o: ["Сам — командой в боте", "Голосом или текстом Михаилу — он внесёт", "Тема недели не нужна"] },
+    { b: "bot", s: "Рассылки всем", t: "Кто может делать рассылку сообщения всем участникам бота?",
+      o: ["Только я", "Я и Михаил — по согласованию", "Рассылки не использовать вообще"] },
+    { b: "bot", s: "Возврат после паузы", t: "Когда человек возвращается после паузы, бот спрашивает: «Что заметил за то время, что был вне практики?». Как тебе?",
+      o: ["Оставить", "Изменить текст — напишу свой в комментарии", "Убрать"] },
+    { b: "bot", s: "Донат в боте", t: "Команда /support показывает реквизиты для доната. Как с ней поступить?",
+      o: ["Оставить как есть", "Изменить текст", "Убрать из бота — говорить об этом только на встречах"] },
+    { b: "bot", s: "Администраторы бота", t: "Кто, кроме тебя, может быть администратором бота?",
+      o: ["Только я", "Я и Михаил", "Ещё кто-то из старших участников (напишу кто)"] },
+
+    // ---------- Запрос ----------
+    { b: "zapros", s: "Что такое «запрос»", t: "Что для тебя означает «запрос» у человека, который приходит к Работе?",
+      h: "У Успенского описано понятие «магнитного центра»: в человеке накапливается то, что не удовлетворяется обычной жизнью, и именно это позволяет ему узнать Работу, когда он с ней встречается.",
+      o: ["Осознанная неудовлетворённость собой и своей жизнью", "Вопрос, на который человек сам давно ищет ответ", "Готовность платить усилием", "Это не описать — видно только при встрече"] },
+    { b: "zapros", s: "Как сейчас приходят люди", t: "Как люди сейчас попадают в группу?",
+      o: ["По личной рекомендации участников", "Через меня лично", "По-разному — «привела жизнь»"] },
+    { b: "zapros", s: "Порог перед первой встречей", t: "Нужен ли порог перед первым занятием?",
+      o: ["Да — личный разговор со мной", "Короткая анкета с вопросами", "Нет — достаточно прийти"] },
+    { b: "zapros", s: "Кто видит анкету", t: "Если анкета когда-нибудь появится — кто должен её читать?",
+      o: ["Только я", "Я и один доверенный человек", "Анкета не нужна"] },
+    { b: "zapros", s: "Рекомендация новичка", t: "Может ли участник привести нового человека?",
+      h: "В группах Гурджиева считалось, что тот, кто приводит человека, отчасти отвечает за него.",
+      o: ["Да, свободно", "Да, но решение о входе за мной", "Нет — люди приходят только сами"] },
+    { b: "zapros", s: "Первые встречи новичка", t: "Нужен ли новичку период «наблюдателя» перед полноценным участием?",
+      o: ["Да, первые несколько встреч — только слушать", "Нет, сразу полноценное участие", "Решаю индивидуально"] },
+    { b: "zapros", s: "Ушёл и вернулся", t: "Человек ушёл, потом вернулся. Как к этому относиться?",
+      o: ["Дверь всегда открыта", "Возвращение — через разговор со мной", "После нескольких уходов — пауза"] },
+    { b: "zapros", s: "Подготовка до первой встречи", t: "Должен ли человек что-то знать заранее?",
+      o: ["Да — базовое чтение (например, Успенский)", "Нет — лучше прийти без готовых представлений", "По желанию человека"] },
+    { b: "zapros", type: "multi", s: "Обязательства участника", t: "Что ты ожидаешь от участника группы?",
+      o: ["Регулярность — не пропускать встречи без причины", "Практику между встречами", "Не пересказывать содержание вне группы", "Ничего обязательного"] },
+    { b: "zapros", s: "Что говорится в группе", t: "Как быть с тем, что звучит на встречах?",
+      h: "Успенский описывает правило групп Гурджиева: не рассказывать посторонним о том, что слышишь на занятиях. Смысл был не в тайне, а в том, чтобы не растрачивать впечатления разговорами.",
+      o: ["Строго внутри группы", "Можно делиться своим опытом, но не чужим", "Особых правил не нужно"] },
+    { b: "zapros", type: "multi", s: "Кому сейчас не сюда", t: "Есть ли люди, которым группа сейчас не подходит?",
+      o: ["Тем, кто ищет лёгкого утешения", "Людям в остром кризисе — им сначала нужен специалист", "«Коллекционерам» учений", "Я так не разделяю"] },
+    { b: "zapros", s: "Размер группы", t: "Какой размер группы ты считаешь здоровым?",
+      o: ["До 10 человек", "10–20 человек", "Больше 20", "Не ограничиваю"] },
+    { b: "zapros", s: "Отдельная группа для новичков", t: "Нужна ли отдельная группа для тех, кто только начинает?",
+      o: ["Да", "Нет — все вместе", "Позже, если группа вырастет"] },
+    { b: "zapros", s: "Плата", t: "Как ты видишь плату за участие?",
+      h: "Гурджиев настаивал, что человек не ценит того, за что ничего не заплатил, — и плата не обязательно деньгами: усилием, временем, неудобством.",
+      o: ["Только донат, как сейчас", "Донат и ориентир — рекомендованная сумма", "Фиксированная плата за программу", "Главное — плата усилием, деньги вторичны"] },
+    { b: "zapros", s: "Говорить ли о плате открыто", t: "Стоит ли объяснять участникам смысл платы как части Работы?",
+      o: ["Да, объясняю открыто", "Нет — это личное дело каждого", "Только тем, кто спросит"] },
+    { b: "zapros", s: "Онлайн-формат", t: "Онлайн-встречи — это для тебя…",
+      o: ["Полноценный основной формат", "Хорошо, но только вместе с живыми встречами", "Временная мера"] },
+    { b: "zapros", s: "Упоминание линии", t: "Можно ли где-либо упоминать линию передачи — твоего дядю и прямое ученичество?",
+      o: ["Да, открыто", "Только внутри группы", "Нет, нигде"] },
+
+    // ---------- Платформа ----------
+    { b: "platform", s: "Отношение к платформе", t: "Как ты сейчас относишься к самой идее платформы?",
+      o: ["Интересно, но не сейчас", "Интересно — можно начать с малого", "Не нужно вообще", "Хочу обсудить лично"] },
+    { b: "platform", s: "Когда вернуться к теме", t: "Когда можно вернуться к этому разговору?",
+      o: ["Через 3 месяца", "Через полгода", "Через год", "Сам скажу, когда будет время"] },
+    { b: "platform", s: "Для кого платформа", t: "Если платформа появится — для кого она?",
+      o: ["Только для действующих участников", "Для участников и тех, кого они приводят", "Открыта всем, но через фильтр запроса"] },
+    { b: "platform", type: "multi", s: "Что можно показывать публично", t: "Что из этого допустимо держать в открытом доступе?",
+      o: ["Ничего", "Короткие мысли и наблюдения", "Описание подхода — без самих практик", "Расписание и способ связаться"] },
+    { b: "platform", s: "«Открытая дверь»", t: "Нужен ли публичный канал или страница — как дверь для тех, кого «привела жизнь»?",
+      h: "Без рекламы и призывов. Просто место, где ищущий может случайно найти дорогу — или пройти мимо.",
+      o: ["Да", "Нет", "Позже"] },
+    { b: "platform", s: "Форма платформы", t: "Какая форма тебе ближе?",
+      o: ["Закрытый Telegram-канал + бот", "Сайт с личным кабинетом", "Отдельное приложение", "Неважно — главное суть"] },
+    { b: "platform", s: "Программы и этапы", t: "Нужны ли поэтапные программы обучения?",
+      h: "Четвёртый путь не имеет постоянной формы: школа возникает вокруг учителя и под конкретных людей. Курс с «уровнями» может превратить Работу в продукт.",
+      o: ["Да — этапы, переход через разговор со мной", "Нет — Работа не делится на курсы", "Нужно подумать"] },
+    { b: "platform", s: "Записи практик 24/7", t: "Должны ли записи практик и медитаций быть доступны в любое время?",
+      o: ["Да", "Только тем, кто прошёл личную встречу", "Нет — практика только вживую"] },
+    { b: "platform", s: "Другие ведущие", t: "Могут ли в будущем быть ведущие, кроме тебя?",
+      o: ["Нет", "Да — старшие ученики под моим руководством", "Возможно, когда-нибудь"] },
+    { b: "platform", s: "Общение между участниками", t: "Нужно ли пространство для общения участников между собой?",
+      o: ["Да — общий чат", "Только малые группы по 3–5 человек", "Нет — связь только через практику"] },
+    { b: "platform", s: "Живые встречи и выезды", t: "Видишь ли ты в будущем живые встречи или выезды?",
+      o: ["Да", "Нет", "Когда-нибудь"] },
+    { b: "platform", type: "multi", s: "Языки", t: "На каких языках могла бы работать платформа?",
+      o: ["Русский", "Английский", "Грузинский", "Другие (напишу)"] },
+    { b: "platform", s: "ИИ на платформе", t: "Допустим ли искусственный интеллект на такой платформе?",
+      o: ["Нет, никогда", "Только для технических вещей: напоминания, расписание", "Как помощник по материалам — но не как «учитель»"] },
+    { b: "platform", type: "multi", s: "Красные линии", t: "Что недопустимо ни при каких условиях?",
+      o: ["Реклама и продвижение", "Игровые механики: очки, серии, рейтинги", "Платный доступ к «уровням»", "ИИ, который «учит» вместо человека"] },
+    { b: "platform", type: "multi", s: "Чем Михаил полезен сейчас", t: "Чем Михаил может быть полезен тебе уже сейчас — без всякой платформы?",
+      o: ["Технические вещи: бот, записи, файлы", "Организация встреч и расписания", "Первые разговоры с новичками", "Пока ничего — просто практиковать"] },
+    { b: "platform", s: "Как часто сверяться", t: "Как часто тебе удобно возвращаться к разговору о развитии?",
+      o: ["Раз в месяц", "Раз в квартал", "Только когда сам захочу"] },
+    { b: "platform", type: "open", s: "Главное — своими словами", t: "Что самое важное ты хотел бы сказать Михаилу обо всей этой идее?",
+      h: "Здесь нет вариантов. Можно одной строкой, можно подробно — или пропустить." }
+  ];
+
+  QUESTIONS.forEach(function (q, i) { q.n = i + 1; q.type = q.type || "single"; });
+  var TOTAL = QUESTIONS.length;
+
+  // ---------- State ----------
+  var state = { screen: "intro", idx: 0, answers: {}, seenBlocks: {}, startedAt: null, activeMs: 0 };
+  // answers[n] = { sel: [i...], refuse: bool, skip: bool, comment: "" }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (raw) { var s = JSON.parse(raw); if (s && s.answers) state = Object.assign(state, s); }
+    } catch (e) {}
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  // ---------- Timing ----------
+  var qShownAt = null;
+  function markShown() { qShownAt = Date.now(); }
+  function accumulate() {
+    if (qShownAt) {
+      var d = Math.min(Date.now() - qShownAt, 4 * 60 * 1000); // не считаем долгие паузы
+      state.activeMs += d; qShownAt = null;
+    }
+  }
+  function answeredCount() {
+    var c = 0; for (var k in state.answers) if (isResolved(state.answers[k])) c++; return c;
+  }
+  function remainingText() {
+    var done = answeredCount();
+    var per = SEC_PER_Q;
+    if (done >= 5 && state.activeMs > 0) {
+      var real = state.activeMs / 1000 / done;
+      per = Math.max(15, Math.min(90, real * 0.6 + SEC_PER_Q * 0.4));
+    }
+    var left = Math.max(0, TOTAL - done);
+    var mins = Math.round(left * per / 60);
+    if (left === 0) return "готово";
+    if (mins < 1) return "< 1 мин";
+    return "≈ " + mins + " мин";
+  }
+
+  // ---------- Helpers ----------
+  function $(id) { return document.getElementById(id); }
+  function el(tag, attrs, html) {
+    var e = document.createElement(tag);
+    if (attrs) for (var k in attrs) {
+      if (k === "class") e.className = attrs[k];
+      else if (k.indexOf("on") === 0) e.addEventListener(k.slice(2), attrs[k]);
+      else e.setAttribute(k, attrs[k]);
+    }
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function blockOf(q) { for (var i = 0; i < BLOCKS.length; i++) if (BLOCKS[i].id === q.b) return { b: BLOCKS[i], i: i }; }
+  function blockQs(id) { return QUESTIONS.filter(function (q) { return q.b === id; }); }
+  function ans(n) { if (!state.answers[n]) state.answers[n] = { sel: [], refuse: false, skip: false, comment: "" }; return state.answers[n]; }
+  function isResolved(a) { return !!a && (a.sel.length > 0 || a.refuse || a.skip || (a.comment && a.comment.trim().length > 0)); }
+  function statusOf(n) {
+    var a = state.answers[n];
+    if (!isResolved(a)) return "";
+    if (a.refuse) return "refused";
+    if (a.skip && !a.sel.length && !(a.comment || "").trim()) return "skipped";
+    return "answered";
+  }
+  function toast(msg) { var t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(function () { t.classList.remove("show"); }, 2200); }
+
+  // ---------- Chrome (topbar, track, rail) ----------
+  function renderTrack() {
+    var track = $("track"); track.innerHTML = "";
+    var cur = state.screen === "question" ? QUESTIONS[state.idx] : null;
+    BLOCKS.forEach(function (b) {
+      var qs = blockQs(b.id);
+      var done = qs.filter(function (q) { return isResolved(state.answers[q.n]); }).length;
+      var seg = el("div", { class: "seg", style: "--w:" + qs.length });
+      var isActive = (cur && cur.b === b.id) || (state.screen === "block" && BLOCKS[state.blockIdx] && BLOCKS[state.blockIdx].id === b.id);
+      if (isActive) seg.classList.add("active");
+      else if (done === qs.length) seg.classList.add("done");
+      seg.appendChild(el("div", { class: "seg-bar" }, '<div class="seg-fill" style="width:' + (done / qs.length * 100) + '%"></div>'));
+      seg.appendChild(el("div", { class: "seg-label" }, esc(b.title) + " · " + done + "/" + qs.length));
+      track.appendChild(seg);
+    });
+    var shownN = cur ? cur.n : Math.min(TOTAL, answeredCount() + 1);
+    $("metaCount").innerHTML = "<b>" + shownN + "</b> из " + TOTAL;
+    $("metaTime").textContent = remainingText();
+  }
+
+  function mapHTML() {
+    var cur = state.screen === "question" ? QUESTIONS[state.idx].n : -1;
+    var furthest = furthestReachable();
+    var html = "";
+    BLOCKS.forEach(function (b) {
+      html += '<div class="block-map"><h4>' + esc(b.title) + '</h4><div class="dots">';
+      blockQs(b.id).forEach(function (q) {
+        var st = statusOf(q.n);
+        var cls = "dot " + st + (q.n === cur ? " current" : "");
+        var dis = (q.n - 1) > furthest ? " disabled" : "";
+        html += '<button class="' + cls + '" data-go="' + (q.n - 1) + '"' + dis + ' title="' + esc(q.s) + '">' + q.n + '</button>';
+      });
+      html += "</div></div>";
+    });
+    html += '<div class="legend"><div><i style="background:#E5ECDF;border:1px solid #C9D7C0"></i>Ответ дан</div><div><i style="background:#F6E3DE;border:1px solid #E9C6BE"></i>Не согласен</div><div><i style="background:#EFEAE0"></i>Пропущен</div></div>';
+    return html;
+  }
+  function furthestReachable() {
+    var f = 0;
+    for (var i = 0; i < TOTAL; i++) { if (isResolved(state.answers[i + 1])) f = i + 1; else break; }
+    return Math.max(f, state.idx);
+  }
+  function bindMap(container) {
+    container.querySelectorAll("[data-go]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.disabled) return;
+        closeDrawer();
+        goTo(parseInt(b.getAttribute("data-go"), 10));
+      });
+    });
+  }
+  function renderRail() {
+    var rail = $("rail"); rail.innerHTML = mapHTML(); bindMap(rail);
+  }
+  function openDrawer() { $("drawerBody").innerHTML = mapHTML(); bindMap($("drawerBody")); $("drawer").classList.add("open"); $("drawerBg").classList.add("open"); }
+  function closeDrawer() { $("drawer").classList.remove("open"); $("drawerBg").classList.remove("open"); }
+
+  function setChrome(show) {
+    $("topbar").classList.toggle("hidden", !show);
+    $("shell").classList.toggle("with-rail", show);
+    $("navbar").classList.toggle("railed", show);
+    if (show) { renderTrack(); renderRail(); } else { $("rail").innerHTML = ""; }
+  }
+
+  function setNav(buttons) {
+    var wrap = $("navWrap"); wrap.innerHTML = "";
+    if (!buttons || !buttons.length) { $("navbar").classList.add("hidden"); return; }
+    $("navbar").classList.remove("hidden");
+    buttons.forEach(function (b) { wrap.appendChild(b); });
+  }
+
+  // ---------- Screens ----------
+  function renderIntro() {
+    setChrome(false);
+    var hasProgress = answeredCount() > 0;
+    var main = $("main");
+    main.innerHTML =
+      '<section class="screen">' +
+        '<div class="eyebrow">Лично от Михаила</div>' +
+        '<h1>Арсен, несколько вопросов — без спешки</h1>' +
+        '<div class="rule"></div>' +
+        '<div class="letter">' +
+          '<p>Ты сказал, что к большой платформе пока не готов, — и я это принимаю. Но мне важно понять, чем я могу быть полезен уже сейчас и чего делать точно не нужно.</p>' +
+          '<p>Здесь вопросы о боте, который уже работает в группе, о том, кто и как приходит к Работе, и о платформе — не как о плане, а как о том, какой она могла бы быть когда-нибудь.</p>' +
+          '<p>Ни один ответ ни к чему тебя не обязывает. На любой вопрос можно ответить «нет», пропустить его или написать своими словами. Если вопрос кажется неуместным — так и отметь, это тоже ответ.</p>' +
+          '<div class="sign">— Михаил</div>' +
+        '</div>' +
+        '<div class="facts">' +
+          '<div class="fact"><b>' + TOTAL + '</b><span>вопросов</span></div>' +
+          '<div class="fact"><b>≈ 30</b><span>минут</span></div>' +
+          '<div class="fact"><b>3</b><span>части</span></div>' +
+        '</div>' +
+        '<div class="blocks-list">' +
+          BLOCKS.map(function (b, i) { return '<div><span class="n">' + (i + 1) + '</span><span><span class="t">' + esc(b.title) + '</span> <span class="d">· ' + blockQs(b.id).length + ' вопросов</span></span></div>'; }).join("") +
+        '</div>' +
+        '<p class="footnote">Можно остановиться в любой момент — ответы сохранятся на этом устройстве, и ты продолжишь с того же места. В конце будет одна кнопка, чтобы отправить всё мне в Telegram.</p>' +
+      '</section>';
+    var btns = [];
+    if (hasProgress) {
+      btns.push(el("button", { class: "btn ghost", onclick: function () { if (confirm("Начать заново? Текущие ответы будут стёрты.")) { state = { screen: "intro", idx: 0, answers: {}, seenBlocks: {}, startedAt: null, activeMs: 0 }; save(); renderIntro(); } } }, "Заново"));
+      btns.push(el("button", { class: "btn primary", onclick: resume }, "Продолжить с вопроса " + Math.min(TOTAL, furthestReachable() + 1)));
+    } else {
+      btns.push(el("button", { class: "btn primary", onclick: start }, "Начать"));
+    }
+    setNav(btns);
+    window.scrollTo(0, 0);
+  }
+
+  function start() { state.startedAt = state.startedAt || Date.now(); state.idx = 0; showBlockIntro(0); }
+  function resume() {
+    var i = Math.min(TOTAL - 1, furthestReachable());
+    if (answeredCount() >= TOTAL) { renderSummary(); return; }
+    goTo(i);
+  }
+
+  function showBlockIntro(blockIdx) {
+    state.screen = "block"; state.blockIdx = blockIdx; save();
+    setChrome(true);
+    var b = BLOCKS[blockIdx];
+    var qs = blockQs(b.id);
+    $("main").innerHTML =
+      '<section class="screen interstitial">' +
+        '<div class="eyebrow">Часть ' + (blockIdx + 1) + ' из ' + BLOCKS.length + '</div>' +
+        '<div class="big">0' + (blockIdx + 1) + '</div>' +
+        '<h1>' + esc(b.title) + '</h1>' +
+        '<p>' + esc(b.desc) + '</p>' +
+        '<div class="stat-row"><span class="stat"><b>' + qs.length + '</b> вопросов</span><span class="stat">≈ <b>' + Math.max(1, Math.round(qs.length * SEC_PER_Q / 60)) + '</b> мин</span></div>' +
+      '</section>';
+    var btns = [];
+    btns.push(el("button", { class: "btn ghost", onclick: function () { if (blockIdx === 0) renderIntro(); else goTo(qs[0].n - 2); } }, "Назад"));
+    btns.push(el("button", { class: "btn primary", onclick: function () { state.seenBlocks[b.id] = true; goTo(qs[0].n - 1, true); } }, "Дальше"));
+    setNav(btns);
+    window.scrollTo(0, 0);
+  }
+
+  function goTo(i, fromBlockIntro) {
+    accumulate();
+    if (i < 0) { renderIntro(); return; }
+    if (i >= TOTAL) { renderSummary(); return; }
+    var q = QUESTIONS[i];
+    var bi = blockOf(q).i;
+    var firstOfBlock = blockQs(q.b)[0].n === q.n;
+    if (firstOfBlock && !fromBlockIntro && !state.seenBlocks[q.b]) { state.idx = i; showBlockIntro(bi); return; }
+    state.idx = i; state.screen = "question"; save();
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    setChrome(true);
+    var q = QUESTIONS[state.idx];
+    var a = ans(q.n);
+    var bk = blockOf(q).b;
+    var main = $("main");
+
+    var html = '<section class="screen" aria-live="polite">' +
+      '<div class="qmeta"><span class="chip">' + esc(bk.title) + '</span><span class="qnum">Вопрос ' + q.n + ' из ' + TOTAL + '</span></div>' +
+      '<h2 class="q">' + esc(q.t) + '</h2>' +
+      (q.type === "multi" ? '<p class="multi-note">Можно выбрать несколько</p>' : "") +
+      (q.h ? '<div class="hint"><b>Контекст</b>' + esc(q.h) + '</div>' : "");
+
+    if (q.type !== "open") {
+      html += '<div class="options" role="' + (q.type === "multi" ? "group" : "radiogroup") + '">';
+      q.o.forEach(function (opt, i) {
+        var sel = a.sel.indexOf(i) >= 0;
+        html += '<button class="opt' + (q.type === "multi" ? " multi" : "") + (sel ? " sel" : "") + '" data-opt="' + i + '" role="' + (q.type === "multi" ? "checkbox" : "radio") + '" aria-checked="' + sel + '">' +
+          '<span class="mark"></span><span>' + esc(opt) + '</span><span class="key">' + (i + 1) + '</span></button>';
+      });
+      html += '</div>';
+      html += '<div class="alt-row">' +
+        '<button class="alt refuse' + (a.refuse ? " sel" : "") + '" id="refuseBtn">✕&nbsp; Не согласен / против</button>' +
+        '<button class="alt comment' + ((a.comment || "").trim() ? " sel" : "") + '" id="commentBtn">✎&nbsp; Свой комментарий</button>' +
+      '</div>';
+      html += '<div class="comment-box' + ((a.comment || "").trim() || a.refuse ? " open" : "") + '" id="commentBox">' +
+        '<label for="commentInput">' + (a.refuse ? "Почему нет — или как было бы правильно?" : "Твой комментарий") + '</label>' +
+        '<textarea id="commentInput" placeholder="Можно своими словами…">' + esc(a.comment || "") + '</textarea></div>';
+    } else {
+      html += '<div class="comment-box open open-only" id="commentBox" style="margin-top:22px">' +
+        '<label for="commentInput">Своими словами</label>' +
+        '<textarea id="commentInput" placeholder="Напиши здесь…">' + esc(a.comment || "") + '</textarea></div>';
+    }
+    html += '</section>';
+    main.innerHTML = html;
+
+    // Bind options
+    main.querySelectorAll("[data-opt]").forEach(function (b) {
+      b.addEventListener("click", function () { toggleOpt(parseInt(b.getAttribute("data-opt"), 10)); });
+    });
+    var rb = $("refuseBtn"); if (rb) rb.addEventListener("click", toggleRefuse);
+    var cb = $("commentBtn"); if (cb) cb.addEventListener("click", function () {
+      var box = $("commentBox"); box.classList.add("open"); $("commentInput").focus();
+    });
+    var ci = $("commentInput");
+    ci.addEventListener("input", function () {
+      a.comment = ci.value; if (a.comment.trim()) a.skip = false;
+      var cbtn = $("commentBtn"); if (cbtn) cbtn.classList.toggle("sel", !!a.comment.trim());
+      save(); updateNext(); renderTrack(); renderRail();
+    });
+
+    // Nav
+    var back = el("button", { class: "btn ghost", onclick: function () { goTo(state.idx - 1); } }, "Назад");
+    var skip = el("button", { class: "btn skip", onclick: function () {
+      a.skip = true; save(); goTo(state.idx + 1);
+    } }, "Пропустить");
+    var next = el("button", { class: "btn primary", id: "nextBtn", onclick: function () { if (isResolved(a)) goTo(state.idx + 1); } }, state.idx === TOTAL - 1 ? "К итогам" : "Далее");
+    setNav([back, skip, next]);
+    updateNext();
+    markShown();
+    window.scrollTo(0, 0);
+  }
+
+  function updateNext() {
+    var q = QUESTIONS[state.idx];
+    var a = state.answers[q.n];
+    var nb = $("nextBtn");
+    if (nb) nb.disabled = !(a && (a.sel.length || a.refuse || (a.comment || "").trim()));
+  }
+
+  function toggleOpt(i) {
+    var q = QUESTIONS[state.idx];
+    var a = ans(q.n);
+    if (q.type === "multi") {
+      var p = a.sel.indexOf(i);
+      if (p >= 0) a.sel.splice(p, 1); else a.sel.push(i);
+      a.sel.sort();
+    } else {
+      a.sel = (a.sel[0] === i) ? [] : [i];
+    }
+    if (a.sel.length) { a.refuse = false; a.skip = false; }
+    save();
+    // update UI without full rerender
+    document.querySelectorAll("[data-opt]").forEach(function (b) {
+      var on = a.sel.indexOf(parseInt(b.getAttribute("data-opt"), 10)) >= 0;
+      b.classList.toggle("sel", on); b.setAttribute("aria-checked", on);
+    });
+    var rb = $("refuseBtn"); if (rb) rb.classList.toggle("sel", a.refuse);
+    var lbl = document.querySelector("#commentBox label"); if (lbl) lbl.textContent = "Твой комментарий";
+    updateNext(); renderTrack(); renderRail();
+    // Одиночный выбор: короткая пауза и дальше, если комментарий не открыт
+    if (q.type === "single" && a.sel.length && !$("commentBox").classList.contains("open")) {
+      clearTimeout(window.__adv);
+      window.__adv = setTimeout(function () {
+        if (state.screen === "question" && QUESTIONS[state.idx].n === q.n && a.sel.length && !$("commentBox").classList.contains("open")) goTo(state.idx + 1);
+      }, 420);
+    }
+  }
+
+  function toggleRefuse() {
+    var q = QUESTIONS[state.idx];
+    var a = ans(q.n);
+    a.refuse = !a.refuse;
+    if (a.refuse) { a.sel = []; a.skip = false; }
+    save();
+    document.querySelectorAll("[data-opt]").forEach(function (b) { b.classList.remove("sel"); b.setAttribute("aria-checked", "false"); });
+    $("refuseBtn").classList.toggle("sel", a.refuse);
+    var box = $("commentBox");
+    if (a.refuse) { box.classList.add("open"); box.querySelector("label").textContent = "Почему нет — или как было бы правильно?"; setTimeout(function () { $("commentInput").focus(); }, 60); }
+    updateNext(); renderTrack(); renderRail();
+  }
+
+  // ---------- Summary ----------
+  function answerText(q, a) {
+    if (!isResolved(a)) return { txt: "— не отвечено", cls: "skipped" };
+    if (a.refuse) return { txt: "Не согласен / против", cls: "refused" };
+    if (a.sel.length) return { txt: a.sel.map(function (i) { return q.o[i]; }).join("; "), cls: "" };
+    if (q.type === "open" && (a.comment || "").trim()) return { txt: "", cls: "" };
+    if ((a.comment || "").trim()) return { txt: "Только комментарий", cls: "" };
+    return { txt: "Пропущено", cls: "skipped" };
+  }
+
+  function renderSummary() {
+    accumulate();
+    state.screen = "summary"; save();
+    setChrome(true);
+    $("metaCount").innerHTML = "<b>Итоги</b>";
+    var counts = { answered: 0, refused: 0, skipped: 0 };
+    QUESTIONS.forEach(function (q) { var s = statusOf(q.n); if (s === "answered") counts.answered++; else if (s === "refused") counts.refused++; else counts.skipped++; });
+
+    var html = '<section class="screen">' +
+      '<div class="eyebrow">Готово</div>' +
+      '<h1>Спасибо, Арсен</h1>' +
+      '<div class="stat-row"><span class="stat">Ответов: <b>' + counts.answered + '</b></span><span class="stat">Не согласен: <b>' + counts.refused + '</b></span><span class="stat">Пропущено: <b>' + counts.skipped + '</b></span></div>' +
+      '<div class="send-card"><h2 id="sendTitle">' + (state.sentAt ? "Ответы отправлены" : "Отправить Михаилу") + '</h2>' +
+      '<p id="sendText">' + (ONLINE
+        ? (state.sentAt ? "Михаил уже получил ответы. Если что-то поменял — можно отправить ещё раз." : "Одна кнопка — и ответы придут Михаилу сообщением от бота «Наблюдатель». Ничего не нужно копировать.")
+        : "Откроется Telegram — чат с Михаилом, текст уже будет вставлен. Останется нажать «Отправить».") + '</p>' +
+      '<div class="send-actions" id="sendActions"></div>' +
+      '<div id="altSend"' + (ONLINE ? ' class="hidden"' : '') + '></div>' +
+      (ONLINE ? '<button class="small-link" id="altToggle">Другие способы отправки</button>' : '') +
+      '<button class="small-link" id="copyBtn" style="display:block">Скопировать текст ответов</button>' +
+      '</div>' +
+      '<p class="footnote">Ниже — все ответы. Любой можно поправить, нажав «Изменить».</p>';
+
+    BLOCKS.forEach(function (b) {
+      html += '<div class="sum-block"><h3>' + esc(b.title) + '</h3>';
+      blockQs(b.id).forEach(function (q) {
+        var a = state.answers[q.n] || { sel: [], comment: "" };
+        var at = answerText(q, a);
+        html += '<div class="sum-item"><div class="q">' + q.n + '. ' + esc(q.s) + '</div>' +
+          '<button class="edit" data-go="' + (q.n - 1) + '">Изменить</button>' +
+          (at.txt ? '<div class="a ' + at.cls + '">' + esc(at.txt) + '</div>' : '') +
+          ((a.comment || "").trim() ? '<div class="c">' + esc(a.comment.trim()) + '</div>' : '') +
+          '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</section>';
+    $("main").innerHTML = html;
+
+    $("main").querySelectorAll("[data-go]").forEach(function (b) {
+      b.addEventListener("click", function () { goTo(parseInt(b.getAttribute("data-go"), 10)); });
+    });
+
+    var parts = buildMessages();
+    var sa = ONLINE ? $("altSend") : $("sendActions");
+
+    if (ONLINE) {
+      var sendBtn = el("button", { class: "btn gold", id: "botSendBtn" }, state.sentAt ? "Отправить ещё раз" : "Отправить Михаилу");
+      sendBtn.style.width = "100%";
+      sendBtn.addEventListener("click", function () {
+        sendBtn.disabled = true; sendBtn.textContent = "Отправляю…";
+        fetch("/opros/answers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: parts.join("\n\n").replace(/^\(\d+\/\d+\)\n/gm, "") }) })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok && j.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) throw new Error(res.j && res.j.error || "fail");
+            state.sentAt = Date.now(); save();
+            $("sendTitle").textContent = "Ответы отправлены";
+            $("sendText").textContent = "Михаил получил ответы сообщением от бота. Спасибо.";
+            sendBtn.textContent = "Отправлено ✓";
+            toast("Отправлено");
+            setTimeout(function () { sendBtn.disabled = false; sendBtn.textContent = "Отправить ещё раз"; }, 4000);
+          })
+          .catch(function () {
+            sendBtn.disabled = false; sendBtn.textContent = "Попробовать ещё раз";
+            $("sendText").textContent = "Не получилось отправить через бота. Можно отправить через Telegram — кнопки ниже.";
+            $("altSend").classList.remove("hidden");
+            var t = $("altToggle"); if (t) t.classList.add("hidden");
+          });
+      });
+      $("sendActions").appendChild(sendBtn);
+      $("altToggle").addEventListener("click", function () { $("altSend").classList.remove("hidden"); this.classList.add("hidden"); });
+      $("altSend").style.display = "grid"; $("altSend").style.gap = "10px"; $("altSend").style.marginTop = "10px";
+    }
+
+    parts.forEach(function (text, i) {
+      var label = parts.length > 1 ? ("Отправить часть " + (i + 1) + " из " + parts.length) : "Отправить в Telegram";
+      var btn = el("a", { class: "btn tg", href: "https://t.me/" + TG_USERNAME + "?text=" + encodeURIComponent(text), target: "_blank", rel: "noopener" },
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.04 15.47 8.9 19.6c.4 0 .58-.17.79-.38l1.9-1.82 3.94 2.88c.72.4 1.24.19 1.43-.67l2.6-12.18c.25-1.08-.4-1.5-1.1-1.24L3.2 10.04c-1.04.4-1.03.98-.18 1.24l3.92 1.22 9.1-5.74c.43-.26.82-.12.5.17"/></svg>' + label);
+      btn.style.textDecoration = "none";
+      sa.appendChild(btn);
+    });
+    $("copyBtn").addEventListener("click", function () { copyText(parts.join("\n\n")); });
+
+    var back = el("button", { class: "btn ghost", onclick: function () { goTo(TOTAL - 1); } }, "Назад к вопросам");
+    setNav([back]);
+    window.scrollTo(0, 0);
+  }
+
+  function buildMessages() {
+    var d = new Date();
+    var date = ("0" + d.getDate()).slice(-2) + "." + ("0" + (d.getMonth() + 1)).slice(-2) + "." + d.getFullYear();
+    var lines = [];
+    lines.push("Ответы Арсена — " + date);
+    BLOCKS.forEach(function (b) {
+      lines.push("");
+      lines.push("■ " + b.title.toUpperCase());
+      blockQs(b.id).forEach(function (q) {
+        var a = state.answers[q.n] || { sel: [], comment: "" };
+        var at = answerText(q, a);
+        var line = q.n + ". " + q.s + ": ";
+        if (a.refuse) line += "✕ НЕ СОГЛАСЕН";
+        else if (at.txt) line += at.txt;
+        lines.push(line.replace(/: $/, ":"));
+        if ((a.comment || "").trim()) lines.push("   › " + a.comment.trim().replace(/\n+/g, " / "));
+      });
+    });
+
+    // Разбиваем на части для лимита Telegram (4096 символов на сообщение)
+    var LIMIT = 3300;
+    var parts = []; var cur = "";
+    lines.forEach(function (ln) {
+      if ((cur + "\n" + ln).length > LIMIT && cur.length) { parts.push(cur); cur = ln; }
+      else cur = cur ? cur + "\n" + ln : ln;
+    });
+    if (cur) parts.push(cur);
+    if (parts.length > 1) parts = parts.map(function (p, i) { return "(" + (i + 1) + "/" + parts.length + ")\n" + p; });
+    return parts;
+  }
+
+  function copyText(text) {
+    function fallback() {
+      var ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); toast("Скопировано — вставь в чат с Михаилом"); } catch (e) { toast("Не удалось скопировать"); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast("Скопировано — вставь в чат с Михаилом"); }, fallback);
+    } else fallback();
+  }
+
+  // ---------- Keyboard ----------
+  document.addEventListener("keydown", function (e) {
+    if (state.screen !== "question") return;
+    var tag = (document.activeElement && document.activeElement.tagName) || "";
+    if (tag === "TEXTAREA") {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { var nb = $("nextBtn"); if (nb && !nb.disabled) nb.click(); }
+      return;
+    }
+    var q = QUESTIONS[state.idx];
+    if (q.type !== "open" && /^[1-9]$/.test(e.key)) {
+      var i = parseInt(e.key, 10) - 1; if (i < q.o.length) { e.preventDefault(); toggleOpt(i); }
+    } else if (e.key === "Enter") { var n = $("nextBtn"); if (n && !n.disabled) { e.preventDefault(); n.click(); } }
+    else if (e.key === "ArrowLeft") { goTo(state.idx - 1); }
+  });
+
+  $("mapBtn").addEventListener("click", openDrawer);
+  $("drawerBg").addEventListener("click", closeDrawer);
+  document.addEventListener("visibilitychange", function () { if (document.hidden) accumulate(); else if (state.screen === "question") markShown(); });
+
+  // ---------- Boot ----------
+  load();
+  if (state.screen === "summary" && answeredCount() > 0) renderSummary();
+  else renderIntro();
+})();
+</script>
+</body>
+</html>
