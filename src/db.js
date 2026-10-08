@@ -12,6 +12,12 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }, // Supabase требует SSL, но с самоподписанным на их стороне сертификатом это ок
 });
 
+// Пулер Supabase иногда рвёт простаивающие соединения. Без этого обработчика
+// такая ошибка роняет весь процесс бота.
+pool.on("error", (err) => {
+  console.error("Соединение с базой разорвано (пул восстановит его сам):", err.message);
+});
+
 async function query(text, params) {
   return pool.query(text, params);
 }
