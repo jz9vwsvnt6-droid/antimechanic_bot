@@ -343,4 +343,21 @@ bot.command("admins", async (ctx) => {
   await ctx.reply("Администраторы бота:\n\n" + (lines.join("\n") || "пока никого"));
 });
 
+// --- Ошибки: человеку - коротко, владельцу - подробности ---------------------
+bot.catch(async (err, ctx) => {
+  console.error("Ошибка бота:", err);
+  const where = ctx && ctx.message && ctx.message.text ? ctx.message.text.slice(0, 60) : (ctx && ctx.updateType) || "?";
+  try {
+    if (ctx && ctx.chat) await ctx.reply("Что-то пошло не так. Михаил уже получил сигнал и поправит.");
+  } catch (e) {}
+  try {
+    if (OWNER_IDS[0]) {
+      await bot.telegram.sendMessage(
+        OWNER_IDS[0],
+        `⚠️ Ошибка в боте\nКоманда: ${where}\n${String((err && err.stack) || err).slice(0, 1500)}`
+      );
+    }
+  } catch (e) {}
+});
+
 module.exports = { bot, isAdmin };
