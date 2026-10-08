@@ -108,6 +108,11 @@ app.get(`/tick/${WEBHOOK_SECRET}`, async (_req, res) => {
 app.listen(PORT, async () => {
   console.log(`Сервер запущен на порту ${PORT}`);
   try {
+    await db.ensureSchema();
+  } catch (err) {
+    console.error("Не удалось проверить схему базы:", err.message);
+  }
+  try {
     await bot.telegram.setWebhook(`${PUBLIC_URL}/telegram-webhook/${WEBHOOK_SECRET}`);
     console.log("Вебхук Telegram установлен:", `${PUBLIC_URL}/telegram-webhook/${WEBHOOK_SECRET}`);
   } catch (err) {
@@ -118,6 +123,7 @@ app.listen(PORT, async () => {
     await bot.telegram.setMyCommands([
       { command: "start", description: "Начать / перезапустить бота" },
       { command: "reminders", description: "Настроить будильники самовспоминания" },
+      { command: "freq", description: "Своя частота будильников, например /freq 10" },
       { command: "journal", description: "Короткая запись в дневник наблюдений" },
       { command: "journal_show", description: "Последние записи дневника" },
       { command: "library", description: "Лекции, музыка, глоссарий" },
