@@ -164,7 +164,54 @@ async function getAllActiveTgIds() {
   return res.rows.map((r) => r.tg_id);
 }
 
+// --- Схема: доп. таблицы создаются автоматически при запуске ---------------
+
+async function ensureSchema() {
+  await query(`
+    create table if not exists admins (
+      tg_id    bigint primary key,
+      added_by bigint,
+      added_at timestamptz not null default now()
+    )
+  `);
+  // Таблица доступна только серверу бота (подключение postgres), не публичному API
+  await query("alter table admins enable row level security");
+}
+
+// --- Администраторы (дополнительно к ADMIN_IDS из настроек Render) ---------
+
+async function listDbAdmins() {
+  const res = await query(
+    `select a.tg_id, a.added_at, u.username, u.first_name
+       from admins a left join users u on u.tg_id = a.tg_id
+      order by a.added_at`
+  );
+  return res.rows;
+}
+
+async function addAdmin(tgId, addedBy) {
+  await query(
+    "insert into admins (tg_id, added_by) values ($1, $2) on conflict (tg_id) do nothing",
+    [tgId, addedBy]
+  );
+}
+
+async function removeAdmin(tgId) {
+  const res = await query("delete from admins where tg_id = $1", [tgId]);
+  return res.rowCount > 0;
+}
+
+async function findUserByUsername(username) {
+  const res = await query("select * from users where lower(username) = lower($1)", [username]);
+  return res.rows[0] || null;
+}
+
 module.exports = {
+  ensureSchema,
+  listDbAdmins,
+  addAdmin,
+  removeAdmin,
+  findUserByUsername,
   pool,
   query,
   upsertUser,

@@ -57,7 +57,17 @@ const JOURNAL_SAVED = "Записано.";
 
 const REMINDERS_MENU_TEXT =
   `Настройка будильников — случайных вопросов в течение дня.\n\n` +
-  `Время выбирается случайно в интервале 9:00–22:00 (МСК), чтобы напоминание не превращалось в предсказуемый фон.`;
+  `Время выбирается случайно в интервале 9:00–22:00 (МСК), чтобы напоминание не превращалось в предсказуемый фон.\n\n` +
+  `Частоту выбираешь сам: кнопкой ниже или своим числом — например, /freq 10.`;
+
+const ADMIN_HELP =
+  `\n\nДля администраторов:\n` +
+  `/set_theme текст — задать тему недели\n` +
+  `/stats — общие цифры по боту\n` +
+  `/broadcast текст — сообщение всем (по согласованию)\n` +
+  `/admins — кто администратор\n` +
+  `/add_admin @username — добавить администратора\n` +
+  `/remove_admin @username — снять права`;
 
 const donateInfo = () =>
   process.env.DONATE_INFO
@@ -76,6 +86,7 @@ module.exports = {
   WELCOME,
   RETURNED_AFTER_PAUSE,
   HELP,
+  ADMIN_HELP,
   JOURNAL_PROMPT,
   JOURNAL_SAVED,
   REMINDERS_MENU_TEXT,
