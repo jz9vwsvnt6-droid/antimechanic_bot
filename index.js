@@ -87,6 +87,17 @@ app.use(bot.webhookCallback(`/telegram-webhook/${WEBHOOK_SECRET}`));
 
 // Внешний планировщик (cron-job.org) дёргает этот путь каждые ~10 минут.
 // Он же не даёт бесплатному инстансу Render "засыпать" от бездействия.
+// Сигнал владельцу, если тик не может достучаться до базы (не чаще раза в 3 часа).
+// Сам /tick всегда отвечает 200: иначе cron-job.org после серии ошибок
+// молча отключает задачу, бот засыпает, а через неделю засыпает и Supabase.
+let lastTickAlertAt = 0;
+async function alertOwner(text) {
+  const owner = (process.env.ADMIN_IDS || "").split(",")[0].trim();
+  if (!owner || Date.now() - lastTickAlertAt < 3 * 60 * 60 * 1000) return;
+  lastTickAlertAt = Date.now();
+  try { await bot.telegram.sendMessage(owner, text); } catch (e) {}
+}
+
 app.get(`/tick/${WEBHOOK_SECRET}`, async (_req, res) => {
   try {
     const due = await collectDueReminders();
@@ -101,7 +112,12 @@ app.get(`/tick/${WEBHOOK_SECRET}`, async (_req, res) => {
     res.json({ ok: true, sent: due.length });
   } catch (err) {
     console.error("Ошибка в /tick:", err.message);
-    res.status(500).json({ ok: false });
+    await alertOwner(
+      "⚠️ Бот не может достучаться до базы Supabase, будильники сейчас не уходят.\n" +
+        `Ошибка: ${String(err.message).slice(0, 300)}\n\n` +
+        "Чаще всего это значит, что бесплатный проект Supabase уснул: зайди в supabase.com → проект Gurdjiev-Project → Restore."
+    );
+    res.status(200).json({ ok: false, error: "db" });
   }
 });
 
